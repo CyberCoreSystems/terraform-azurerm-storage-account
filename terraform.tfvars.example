@@ -1,0 +1,180 @@
+# ==============================================================================
+#  azure-storage-account — terraform.tfvars
+# ==============================================================================
+#  Copy this file to `terraform.tfvars`, set the values, then run:
+#      tofu init && tofu apply        (or:  terraform init && terraform apply)
+#
+# AUTHENTICATION — Azure:
+#   The azurerm (and azuread) providers authenticate to Microsoft Entra ID
+#   (Azure AD) and resolve credentials in this order: explicit OIDC, then
+#   client certificate, then client secret, then Managed Identity, then Azure
+#   CLI.
+#   Quick start: az login (then `az account set --subscription <id>`; `az
+#   login --use-device-code` for headless, `az login --service-principal -u
+#   <appId> -p <secret> --tenant <tenant>` for SP).
+#   Environment variables Terraform reads:
+#     ARM_SUBSCRIPTION_ID — Target subscription GUID; required for plan/apply in provider v4.x.
+#     ARM_TENANT_ID — Entra ID (Azure AD) tenant GUID.
+#     ARM_CLIENT_ID — App registration / service principal (or user-assigned MSI) client id.
+#     ARM_CLIENT_SECRET  (secret) — Service principal client secret (secret-based auth).
+#     ARM_CLIENT_CERTIFICATE_PATH — Path to the PKCS#12 (.pfx) client certificate.
+#   Full guide (auth + remote state):  docs/CONNECTING-PROVIDERS.md#azure
+#
+#  Secrets below read "REPLACE_ME" — never commit real secrets. Prefer
+#  TF_VAR_<name> environment variables or a secrets manager.
+#  Status: static-validated, live-test pending (see README.md).
+# ==============================================================================
+
+
+# ------------------------------------------------------------------------------
+#  REQUIRED — you must set these
+# ------------------------------------------------------------------------------
+
+# name  —  string  (REQUIRED)
+#   Globally-unique storage account name (3-24 lowercase letters and digits).
+#   Constraint: name must be 3-24 characters of lowercase letters and digits
+#   only.
+name                = "stiacbazaarexample001"
+
+# resource_group_name  —  string  (REQUIRED)
+#   Name of an existing resource group.
+resource_group_name = "rg-storage-example"
+
+# location  —  string  (REQUIRED)
+#   Azure region for the storage account.
+location            = "westeurope"
+
+# ------------------------------------------------------------------------------
+#  OPTIONAL — defaults shown; uncomment a line to override
+# ------------------------------------------------------------------------------
+
+# account_kind  —  string  (optional, default: "StorageV2")
+#   Storage account kind.
+#   Constraint: account_kind must be StorageV2, BlockBlobStorage or FileStorage
+#   (legacy kinds are not supported by this module).
+# account_kind = "StorageV2"
+
+# account_tier  —  string  (optional, default: "Standard")
+#   Storage tier. BlockBlobStorage/FileStorage kinds require Premium.
+#   Constraint: account_tier must be Standard or Premium.
+# account_tier = "Standard"
+
+# account_replication_type  —  string  (optional, default: "ZRS")
+#   Replication: LRS, ZRS, GRS, GZRS, RAGRS or RAGZRS. Defaults to
+#   zone-redundant.
+#   Constraint: account_replication_type must be one of LRS, ZRS, GRS, GZRS,
+#   RAGRS, RAGZRS.
+# account_replication_type = "ZRS"
+
+# access_tier  —  string  (optional, default: "Hot")
+#   Default access tier for blobs.
+#   Constraint: access_tier must be Hot or Cool.
+# access_tier = "Hot"
+
+# shared_access_key_enabled  —  bool  (optional, default: false)
+#   Allow shared-key (account key / SAS) authorization. Off by default: use
+#   Entra ID. Note: managing containers with keys disabled requires
+#   'storage_use_azuread = true' in your provider block, and file shares require
+#   this to be true.
+# shared_access_key_enabled = false
+
+# public_network_access_enabled  —  bool  (optional, default: true)
+#   Allow any traffic over the public endpoint (still filtered by
+#   network_rules). Set false for private-endpoint-only accounts.
+# public_network_access_enabled = true
+
+# allow_nested_items_to_be_public  —  bool  (optional, default: false)
+#   Permit containers/blobs to be configured for anonymous public access. Keep
+#   false unless you really host public content.
+# allow_nested_items_to_be_public = false
+
+# infrastructure_encryption_enabled  —  bool  (optional, default: true)
+#   Enable infrastructure (double) encryption. Create-time only — cannot be
+#   changed later.
+# infrastructure_encryption_enabled = true
+
+# blob_versioning_enabled  —  bool  (optional, default: true)
+#   Enable blob versioning.
+# blob_versioning_enabled = true
+
+# blob_change_feed_enabled  —  bool  (optional, default: false)
+#   Enable the blob change feed.
+# blob_change_feed_enabled = false
+
+# blob_soft_delete_days  —  number  (optional, default: 7)
+#   Blob soft-delete retention in days (1-365).
+#   Constraint: blob_soft_delete_days must be between 1 and 365.
+# blob_soft_delete_days = 7
+
+# container_soft_delete_days  —  number  (optional, default: 7)
+#   Container soft-delete retention in days (1-365).
+#   Constraint: container_soft_delete_days must be between 1 and 365.
+# container_soft_delete_days = 7
+
+# network_rules  —  object  (optional, default: {})
+#   Account-level network ACLs. Default denies everything except trusted Azure
+#   services; add your CIDRs/subnets.
+#   Constraint: network_rules.default_action must be Allow or Deny.
+network_rules = {
+  default_action = "Deny"
+  ip_rules       = ["203.0.113.0/24"]
+}
+
+# containers  —  map  (optional, default: {})
+#   Blob containers keyed by name. access_type defaults to private
+#   (blob/container also require allow_nested_items_to_be_public = true).
+#   Constraint: containers access_type must be private, blob or container.
+containers = {
+  raw = {}
+  curated = {
+    metadata = { tier = "silver" }
+  }
+}
+
+# file_shares  —  map  (optional, default: {})
+#   Azure Files shares keyed by name. Requires shared_access_key_enabled = true.
+#   Constraint: file_shares: quota_gb >= 1, access_tier in
+#   Hot/Cool/TransactionOptimized/Premium, protocol SMB or NFS.
+# file_shares = {}
+
+# lifecycle_rules  —  list  (optional, default: [])
+#   Blob lifecycle management rules: tiering and expiry for base blobs,
+#   snapshots and versions (days since modification/creation).
+lifecycle_rules = [
+  {
+    name         = "tier-and-expire-raw"
+    prefix_match = ["raw/"]
+    base_blob = {
+      tier_to_cool_after_days    = 30
+      tier_to_archive_after_days = 90
+      delete_after_days          = 365
+    }
+    snapshot = { delete_after_days = 30 }
+    version  = { delete_after_days = 90 }
+  }
+]
+
+# customer_managed_key  —  object  (optional, default: null)
+#   Customer-managed key encryption. The user-assigned identity needs
+#   wrap/unwrap rights (Key Vault Crypto Service Encryption User) on the vault;
+#   leave key_version null for auto-rotation to the latest version.
+# customer_managed_key = null
+
+# user_assigned_identity_ids  —  list  (optional, default: [])
+#   Extra user-assigned identity IDs to attach to the account (a system-assigned
+#   identity is always created).
+# user_assigned_identity_ids = []
+
+# private_endpoints  —  map  (optional, default: {})
+#   Private endpoints keyed by storage subresource (blob, file, queue, table,
+#   dfs, web).
+#   Constraint: private_endpoints keys must be storage subresources: blob, file,
+#   queue, table, dfs, web.
+# private_endpoints = {}
+
+# tags  —  map  (optional, default: {})
+#   Tags applied to all resources.
+tags = {
+  environment = "example"
+  managed_by  = "iac-bazaar"
+}
