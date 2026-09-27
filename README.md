@@ -17,10 +17,22 @@ archive it describes. Full detail: [www.iac-bazaar.com/catalog/azure-storage-acc
 
 ## Usage
 
+This module is licensed to run under Vizier. A module taken from the registry is a
+CHILD module, and Vizier sets `vizier_run` on the ROOT, so the value has to be handed
+down explicitly. Without it the plan stops with a licence error.
+
 ```hcl
+# Vizier writes this value into the root module.
+variable "vizier_run" {
+  type    = string
+  default = ""
+}
+
 module "storage_account" {
   source  = "registry.terraform.io/CyberCoreSystems/storage-account/azurerm"
   version = "~> 1.0"
+
+  vizier_run = var.vizier_run
 
   # See variables.tf for the full input contract.
 }
